@@ -1,19 +1,19 @@
-from PIL import ImageDraw
+import cv2
 
 def show_bboxes(img, bounding_boxes, facial_landmarks=[]):
     """
         Draw bounding boxes and facial landmarks.
     """
     img_copy = img.copy()
-    draw = ImageDraw.Draw(img_copy)
 
-    for b in bounding_boxes:
-        draw.rectangle([(b[0], b[1]), (b[2], b[3])], 
-            outline='red')
-        
-    for p in facial_landmarks:
+    for box_score in bounding_boxes:
+        cv2.rectangle(img_copy, (int(box_score[0]), int(box_score[1])),
+                      (int(box_score[2]), int(box_score[3])),
+                      (0, 255, 0),
+                      2)
+
+    for pt in facial_landmarks:
         for i in range(5):
-            draw.ellipse([(p[i] - 1.0, p[i + 5] - 1.0),
-                          (p[i] + 1.0, p[i + 5] + 1.0)],
-                          outline='blue')
+            cv2.circle(img_copy, (int(pt[i]), int(pt[i + 5])), 1, (255, 0, 0), 2)
+
     return img_copy

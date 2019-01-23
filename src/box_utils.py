@@ -1,5 +1,5 @@
 import numpy as np
-from PIL import Image
+import cv2
 
 def nms(boxes, overlap_threshold=0.5, mode='union'):
     """ Pure Python NMS baseline. """
@@ -71,7 +71,7 @@ def get_image_boxes(bounding_boxes, img, size=24):
     """Cut out boxes from the image.
     """
     num_boxes = len(bounding_boxes)
-    width, height = img.size
+    (height, width, _) = img.shape
 
     [dy, edy, dx, edx, y, ey, x, ex, w, h] = correct_bboxes(bounding_boxes, width, height)
     img_boxes = np.zeros((num_boxes, 3, size, size), 'float32')
@@ -83,8 +83,7 @@ def get_image_boxes(bounding_boxes, img, size=24):
         img_box[dy[i]:(edy[i] + 1), dx[i]:(edx[i] + 1), :] =\
             img_array[y[i]:(ey[i] + 1), x[i]:(ex[i] + 1), :]
 
-        img_box = Image.fromarray(img_box)
-        img_box = img_box.resize((size, size), Image.BILINEAR)
+        img_box = cv2.resize(img_box, (size, size))
         img_box = np.asarray(img_box, 'float32')
 
         img_boxes[i, :, :, :] = _preprocess(img_box)

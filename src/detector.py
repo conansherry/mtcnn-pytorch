@@ -1,16 +1,22 @@
 import math
 import numpy as np
-from PIL import Image
 import torch
 from .model import PNet, RNet, ONet
 from .box_utils import nms, calibrate_box, get_image_boxes, convert_to_square, _preprocess
+import torch
+import cv2
 
 def detect_faces(image, min_face_size=20.0, thresholds=[0.6, 0.7, 0.8],
-                 nms_thresholds=[0.7, 0.7, 0.7]):
+                 nms_thresholds=[0.7, 0.7, 0.7], gpu_id=0):
+    device = torch.device('cuda:{}'.format(gpu_id) if gpu_id is not None else 'cpu')
     pnet, rnet, onet= PNet(), RNet(), ONet()
+    pnet.to(device)
+    rnet.to(device)
+    onet.to(device)
     onet.eval()
 
-    width, height = image.size
+    image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
+    (height, width, _) = image.shape
     min_length = min(height, width)
     min_detection_size = 12
     factor = 0.707  # sqrt(0.5)
@@ -28,7 +34,7 @@ def detect_faces(image, min_face_size=20.0, thresholds=[0.6, 0.7, 0.8],
     # STAGE 1
     bounding_boxes = []
     for s in scales:    # run P-Net on different scales
-        boxes = run_first_stage(image, pnet, scale=s, threshold=thresholds[0])
+        boxes = run_first_stage(image, pnet, scale=s, threshold=thresholds[0], gpu_id=gpu_id)
         bounding_boxes.append(boxes)
     bounding_boxes = [i for i in bounding_boxes if i is not None]
     bounding_boxes = np.vstack(bounding_boxes)
@@ -41,10 +47,11 @@ def detect_faces(image, min_face_size=20.0, thresholds=[0.6, 0.7, 0.8],
 
     # STAGE 2
     img_boxes = get_image_boxes(bounding_boxes, image, size=24)
-    img_boxes = torch.FloatTensor(img_boxes)
+    img_boxes = torch.from_numpy(img_boxes)
+    img_boxes = img_boxes.to(device)
     output = rnet(img_boxes)
-    offsets = output[0].data.numpy()  # shape [n_boxes, 4]
-    probs = output[1].data.numpy()  # shape [n_boxes, 2]
+    offsets = output[0].to('cpu').data.numpy()  # shape [n_boxes, 4]
+    probs = output[1].to('cpu').data.numpy()  # shape [n_boxes, 2]
 
     keep = np.where(probs[:, 1] > thresholds[1])[0]
     bounding_boxes = bounding_boxes[keep]
@@ -61,11 +68,12 @@ def detect_faces(image, min_face_size=20.0, thresholds=[0.6, 0.7, 0.8],
     img_boxes = get_image_boxes(bounding_boxes, image, size=48)
     if len(img_boxes) == 0: 
         return [], []
-    img_boxes = torch.FloatTensor(img_boxes)
+    img_boxes = torch.from_numpy(img_boxes)
+    img_boxes = img_boxes.to(device)
     output = onet(img_boxes)
-    landmarks = output[0].data.numpy()  # shape [n_boxes, 10]
-    offsets = output[1].data.numpy()  # shape [n_boxes, 4]
-    probs = output[2].data.numpy()  # shape [n_boxes, 2]
+    landmarks = output[0].to('cpu').data.numpy()  # shape [n_boxes, 10]
+    offsets = output[1].to('cpu').data.numpy()  # shape [n_boxes, 4]
+    probs = output[2].to('cpu').data.numpy()  # shape [n_boxes, 2]
 
     keep = np.where(probs[:, 1] > thresholds[2])[0]
     bounding_boxes = bounding_boxes[keep]
@@ -87,19 +95,22 @@ def detect_faces(image, min_face_size=20.0, thresholds=[0.6, 0.7, 0.8],
 
     return bounding_boxes, landmarks
 
-def run_first_stage(image, net, scale, threshold):
+def run_first_stage(image, net, scale, threshold, gpu_id=0):
     """ 
         Run P-Net, generate bounding boxes, and do NMS.
     """
-    width, height = image.size
+    device = torch.device('cuda:{}'.format(gpu_id) if gpu_id is not None else 'cpu')
+    (height, width, _) = image.shape
     sw, sh = math.ceil(width*scale), math.ceil(height*scale)
-    img = image.resize((sw, sh), Image.BILINEAR)
+    img = cv2.resize(image, (sw, sh))
+    # img = image.resize((sw, sh), Image.BILINEAR)
     img = np.asarray(img, 'float32')
-    img = torch.FloatTensor(_preprocess(img))
+    img = torch.from_numpy(_preprocess(img))
+    img = img.to(device)
 
     output = net(img)
-    probs = output[1].data.numpy()[0, 1, :, :]
-    offsets = output[0].data.numpy()
+    probs = output[1].to('cpu').data.numpy()[0, 1, :, :]
+    offsets = output[0].to('cpu').data.numpy()
 
     boxes = _generate_bboxes(probs, offsets, scale, threshold)
     if len(boxes) == 0:
