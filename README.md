@@ -1,4 +1,4 @@
-# mtcnn-pytorch (use opencv)
+# mtcnn-pytorch (use opencv & support gpu)
 pytorch implementation of  face detection algorithm  MTCNN
 
 ### Usage MTCNN
