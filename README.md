@@ -6,8 +6,9 @@ pytorch implementation of  face detection algorithm  MTCNN
 Just download the repository and then do this
 
 ```
+detector = MTCNNFaceDetector(gpu_id=0)
 image = cv2.imread('images/test7.jpg')
-bounding_boxes, landmarks = detect_faces(image, gpu_id=None)
+bounding_boxes, landmarks = detector.forward(image)
 image = show_bboxes(image, bounding_boxes, landmarks)
 cv2.imshow('image', image)
 cv2.waitKey()
