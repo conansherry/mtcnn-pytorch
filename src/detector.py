@@ -128,6 +128,8 @@ class MTCNNFaceDetector(object):
             boxes = run_first_stage(image, self.pnet, scale=s, threshold=thresholds[0], gpu_id=self.gpu_id)
             bounding_boxes.append(boxes)
         bounding_boxes = [i for i in bounding_boxes if i is not None]
+        if len(bounding_boxes) == 0:
+            return [], []
         bounding_boxes = np.vstack(bounding_boxes)
 
         keep = nms(bounding_boxes[:, 0:5], nms_thresholds[0])
